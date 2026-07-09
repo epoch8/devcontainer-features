@@ -14,5 +14,13 @@
                 "packages": "python@3.11"
             }
         }
+    },
+    "install_cask": {
+        "image": "mcr.microsoft.com/devcontainers/base:debian",
+        "features": {
+            "homebrew-packages": {
+                "packages": "claude-code"
+            }
+        }
     }
 }

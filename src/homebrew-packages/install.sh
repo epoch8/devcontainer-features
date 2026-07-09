@@ -80,7 +80,12 @@ install_via_homebrew() {
 		# build time.
 		brew install $installation_flags --overwrite "$package_full"
 
-		brew link --overwrite --force "$package_full"
+		# Casks (e.g. "claude-code") live in Caskroom, not Cellar, and their
+		# artifacts are already linked as part of installing them -- "brew link"
+		# only applies to formulae and errors out ("No such keg") on a cask.
+		if brew list --formula "$package_full" >/dev/null 2>&1; then
+			brew link --overwrite --force "$package_full"
+		fi
 EOF
 }
 
