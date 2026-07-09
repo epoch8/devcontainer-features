@@ -7,9 +7,7 @@ Installs a list of Homebrew packages.
 
 ```json
 "features": {
-    "ghcr.io/epoch8/devcontainer-features/homebrew-packages:1": {
-        "packages": "typescript vtop wget@1.21"
-    }
+    "ghcr.io/epoch8/devcontainer-features/homebrew-packages:0": {}
 }
 ```
 
@@ -24,4 +22,4 @@ Installs a list of Homebrew packages.
 
 ---
 
-_Note: This file was auto-generated from the [devcontainer-feature.json](devcontainer-feature.json).  Add additional notes to a `NOTES.md`._
+_Note: This file was auto-generated from the [devcontainer-feature.json](https://github.com/epoch8/devcontainer-features/blob/main/src/homebrew-packages/devcontainer-feature.json).  Add additional notes to a `NOTES.md`._
