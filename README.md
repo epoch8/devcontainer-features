@@ -1,144 +1,131 @@
-# Dev Container Features: Self Authoring Template
+# Dev Container Features
 
-> This repo provides a starting point and example for creating your own custom [dev container Features](https://containers.dev/implementors/features/), hosted for free on GitHub Container Registry.  The example in this repository follows the [dev container Feature distribution specification](https://containers.dev/implementors/features-distribution/).  
->
-> To provide feedback to the specification, please leave a comment [on spec issue #70](https://github.com/devcontainers/spec/issues/70). For more broad feedback regarding dev container Features, please see [spec issue #61](https://github.com/devcontainers/spec/issues/61).
+> This repo hosts a _collection_ of custom [dev container Features](https://containers.dev/implementors/features/), published to GitHub Container Registry. It follows the [dev container Feature distribution specification](https://containers.dev/implementors/features-distribution/) and was bootstrapped from the official [feature-starter](https://github.com/devcontainers/feature-starter) template.
 
-## Example Contents
+## Features
 
-This repository contains a _collection_ of two Features - `hello` and `color`. These Features serve as simple feature implementations.  Each sub-section below shows a sample `devcontainer.json` alongside example usage of the Feature.
+### `homebrew-packages`
 
-### `hello`
-
-Running `hello` inside the built container will print the greeting provided to it via its `greeting` option.
+Installs a list of [Homebrew](https://brew.sh/) packages in one shot. A specific version can be pinned per package with `@`, e.g. `wget@1.21`.
 
 ```jsonc
 {
     "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
     "features": {
-        "ghcr.io/devcontainers/feature-starter/hello:1": {
-            "greeting": "Hello"
+        "ghcr.io/epoch8/devcontainer-features/homebrew-packages:1": {
+            "packages": "jq wget python@3.11"
         }
     }
 }
 ```
 
 ```bash
-$ hello
+$ jq --version
+jq-1.7.1
 
-Hello, user.
+$ python3.11 --version
+Python 3.11.15
 ```
 
-### `color`
-
-Running `color` inside the built container will print your favorite color to standard out.
-
-```jsonc
-{
-    "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
-    "features": {
-        "ghcr.io/devcontainers/feature-starter/color:1": {
-            "favorite": "green"
-        }
-    }
-}
-```
-
-```bash
-$ color
-
-my favorite color is green
-```
+See [src/homebrew-packages/README.md](src/homebrew-packages/README.md) for the full list of options.
 
 ## Repo and Feature Structure
 
-Similar to the [`devcontainers/features`](https://github.com/devcontainers/features) repo, this repository has a `src` folder.  Each Feature has its own sub-folder, containing at least a `devcontainer-feature.json` and an entrypoint script `install.sh`. 
+Similar to the [`devcontainers/features`](https://github.com/devcontainers/features) repo, this repository has a `src` folder. Each Feature has its own sub-folder, containing at least a `devcontainer-feature.json` and an entrypoint script `install.sh`.
 
 ```
 ├── src
-│   ├── hello
+│   ├── homebrew-packages
 │   │   ├── devcontainer-feature.json
-│   │   └── install.sh
-│   ├── color
-│   │   ├── devcontainer-feature.json
-│   │   └── install.sh
+│   │   ├── install.sh
+│   │   └── README.md
 |   ├── ...
 │   │   ├── devcontainer-feature.json
 │   │   └── install.sh
 ...
 ```
 
-An [implementing tool](https://containers.dev/supporting#tools) will composite [the documented dev container properties](https://containers.dev/implementors/features/#devcontainer-feature-json-properties) from the feature's `devcontainer-feature.json` file, and execute in the `install.sh` entrypoint script in the container during build time.  Implementing tools are also free to process attributes under the `customizations` property as desired.
+An [implementing tool](https://containers.dev/supporting#tools) will composite [the documented dev container properties](https://containers.dev/implementors/features/#devcontainer-feature-json-properties) from the feature's `devcontainer-feature.json` file, and execute in the `install.sh` entrypoint script in the container during build time. Implementing tools are also free to process attributes under the `customizations` property as desired.
 
 ### Options
 
-All available options for a Feature should be declared in the `devcontainer-feature.json`.  The syntax for the `options` property can be found in the [devcontainer Feature json properties reference](https://containers.dev/implementors/features/#devcontainer-feature-json-properties).
+All available options for a Feature should be declared in the `devcontainer-feature.json`. The syntax for the `options` property can be found in the [devcontainer Feature json properties reference](https://containers.dev/implementors/features/#devcontainer-feature-json-properties).
 
-For example, the `color` feature provides an enum of three possible options (`red`, `gold`, `green`).  If no option is provided in a user's `devcontainer.json`, the value is set to "red".
+For example, the `homebrew-packages` feature provides a `packages` string option, defaulting to an empty list. If empty, the install script skips installing Homebrew entirely.
 
 ```jsonc
 {
     // ...
     "options": {
-        "favorite": {
+        "packages": {
             "type": "string",
-            "enum": [
-                "red",
-                "gold",
-                "green"
-            ],
-            "default": "red",
-            "description": "Choose your favorite color."
+            "default": "",
+            "description": "Space-separated list of Homebrew packages to install."
         }
     }
 }
 ```
 
-Options are exported as Feature-scoped environment variables.  The option name is captialized and sanitized according to [option resolution](https://containers.dev/implementors/features/#option-resolution).
+Options are exported as Feature-scoped environment variables. The option name is capitalized and sanitized according to [option resolution](https://containers.dev/implementors/features/#option-resolution).
 
 ```bash
 #!/bin/bash
 
-echo "Activating feature 'color'"
-echo "The provided favorite color is: ${FAVORITE}"
+echo "Activating feature 'homebrew-packages'"
+echo "Packages to install: ${PACKAGES}"
 
 ...
+```
+
+## Testing
+
+Each Feature has autogenerated and scenario-based tests under `test/<feature>/`. They run via the `devcontainer` CLI:
+
+```bash
+npx @devcontainers/cli features test --skip-scenarios -f homebrew-packages -i mcr.microsoft.com/devcontainers/base:ubuntu .
+npx @devcontainers/cli features test -f homebrew-packages --skip-autogenerated --skip-duplicated .
+```
+
+CI runs the same commands via [`.github/workflows/test.yaml`](.github/workflows/test.yaml), and [`.github/workflows/validate.yml`](.github/workflows/validate.yml) validates every `devcontainer-feature.json` against the spec schema. Both can be exercised locally with [`act`](https://github.com/nektos/act):
+
+```bash
+act workflow_dispatch -W .github/workflows/validate.yml
+act workflow_dispatch -W .github/workflows/test.yaml -j test-autogenerated --container-options "-v /tmp:/tmp"
 ```
 
 ## Distributing Features
 
 ### Versioning
 
-Features are individually versioned by the `version` attribute in a Feature's `devcontainer-feature.json`.  Features are versioned according to the semver specification. More details can be found in [the dev container Feature specification](https://containers.dev/implementors/features/#versioning).
+Features are individually versioned by the `version` attribute in a Feature's `devcontainer-feature.json`. Features are versioned according to the semver specification. More details can be found in [the dev container Feature specification](https://containers.dev/implementors/features/#versioning).
 
 ### Publishing
 
-> NOTE: The Distribution spec can be [found here](https://containers.dev/implementors/features-distribution/).  
+> NOTE: The Distribution spec can be [found here](https://containers.dev/implementors/features-distribution/).
 >
-> While any registry [implementing the OCI Distribution spec](https://github.com/opencontainers/distribution-spec) can be used, this template will leverage GHCR (GitHub Container Registry) as the backing registry.
+> While any registry [implementing the OCI Distribution spec](https://github.com/opencontainers/distribution-spec) can be used, this repo leverages GHCR (GitHub Container Registry) as the backing registry.
 
-Features are meant to be easily sharable units of dev container configuration and installation code.  
+Features are meant to be easily sharable units of dev container configuration and installation code.
 
-This repo contains a **GitHub Action** [workflow](.github/workflows/release.yaml) that will publish each Feature to GHCR. 
+This repo contains a **GitHub Action** [workflow](.github/workflows/release.yaml) that will publish each Feature to GHCR, triggered manually via `workflow_dispatch` on `main`.
 
 *Allow GitHub Actions to create and approve pull requests* should be enabled in the repository's `Settings > Actions > General > Workflow permissions` for auto generation of `src/<feature>/README.md` per Feature (which merges any existing `src/<feature>/NOTES.md`).
 
-By default, each Feature will be prefixed with the `<owner/<repo>` namespace.  For example, the two Features in this repository can be referenced in a `devcontainer.json` with:
+By default, each Feature is prefixed with the `<owner>/<repo>` namespace. For example, the Feature in this repository can be referenced in a `devcontainer.json` with:
 
 ```
-ghcr.io/devcontainers/feature-starter/color:1
-ghcr.io/devcontainers/feature-starter/hello:1
+ghcr.io/epoch8/devcontainer-features/homebrew-packages:1
 ```
 
-The provided GitHub Action will also publish a third "metadata" package with just the namespace, eg: `ghcr.io/devcontainers/feature-starter`.  This contains information useful for tools aiding in Feature discovery.
+The provided GitHub Action will also publish a third "metadata" package with just the namespace, eg: `ghcr.io/epoch8/devcontainer-features`. This contains information useful for tools aiding in Feature discovery.
 
-'`devcontainers/feature-starter`' is known as the feature collection namespace.
+'`epoch8/devcontainer-features`' is known as the feature collection namespace.
 
 ### Marking Feature Public
 
-Note that by default, GHCR packages are marked as `private`.  To stay within the free tier, Features need to be marked as `public`.
+Note that by default, GHCR packages are marked as `private`. To stay within the free tier, Features need to be marked as `public`.
 
-This can be done by navigating to the Feature's "package settings" page in GHCR, and setting the visibility to 'public`.  The URL may look something like:
+This can be done by navigating to the Feature's "package settings" page in GHCR, and setting the visibility to 'public`. The URL may look something like:
 
 ```
 https://github.com/users/<owner>/packages/container/<repo>%2F<featureName>/settings
@@ -148,7 +135,7 @@ https://github.com/users/<owner>/packages/container/<repo>%2F<featureName>/setti
 
 ### Adding Features to the Index
 
-If you'd like your Features to appear in our [public index](https://containers.dev/features) so that other community members can find them, you can do the following:
+If you'd like your Features to appear in the [public index](https://containers.dev/features) so that other community members can find them, you can do the following:
 
 * Go to [github.com/devcontainers/devcontainers.github.io](https://github.com/devcontainers/devcontainers.github.io)
      * This is the GitHub repo backing the [containers.dev](https://containers.dev/) spec site
@@ -160,7 +147,7 @@ This index is from where [supporting tools](https://containers.dev/supporting) l
 
 For any Features hosted in GHCR that are kept private, the `GITHUB_TOKEN` access token in your environment will need to have `package:read` and `contents:read` for the associated repository.
 
-Many implementing tools use a broadly scoped access token and will work automatically.  GitHub Codespaces uses repo-scoped tokens, and therefore you'll need to add the permissions in `devcontainer.json`
+Many implementing tools use a broadly scoped access token and will work automatically. GitHub Codespaces uses repo-scoped tokens, and therefore you'll need to add the permissions in `devcontainer.json`
 
 An example `devcontainer.json` can be found below.
 
@@ -168,14 +155,14 @@ An example `devcontainer.json` can be found below.
 {
     "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
     "features": {
-     "ghcr.io/my-org/private-features/hello:1": {
-            "greeting": "Hello"
+     "ghcr.io/epoch8/devcontainer-features/homebrew-packages:1": {
+            "packages": "jq"
         }
     },
     "customizations": {
         "codespaces": {
             "repositories": {
-                "my-org/private-features": {
+                "epoch8/devcontainer-features": {
                     "permissions": {
                         "packages": "read",
                         "contents": "read"
