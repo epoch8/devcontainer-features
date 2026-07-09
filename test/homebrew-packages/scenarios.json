@@ -1,0 +1,18 @@
+{
+    "install_multiple_packages": {
+        "image": "mcr.microsoft.com/devcontainers/base:debian",
+        "features": {
+            "homebrew-packages": {
+                "packages": "jq wget"
+            }
+        }
+    },
+    "install_specific_version": {
+        "image": "mcr.microsoft.com/devcontainers/base:debian",
+        "features": {
+            "homebrew-packages": {
+                "packages": "node@20"
+            }
+        }
+    }
+}
