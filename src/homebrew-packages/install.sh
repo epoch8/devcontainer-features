@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -ex
 
-source ./library_scripts.sh
-
 PACKAGES=${PACKAGES:-""}
 INSTALLATION_FLAGS=${INSTALLATION_FLAGS:-""}
 
@@ -17,15 +15,7 @@ if [ "$(id -u)" -ne 0 ]; then
 	exit 1
 fi
 
-check_packages() {
-	if ! dpkg -s "$@" >/dev/null 2>&1; then
-		if [ "$(find /var/lib/apt/lists/* | wc -l)" = "0" ]; then
-			echo "Running apt-get update..."
-			apt-get update -y
-		fi
-		apt-get -y install --no-install-recommends "$@"
-	fi
-}
+BREW_PREFIX="/home/linuxbrew/.linuxbrew"
 
 ensure_curl() {
 	if ! type curl >/dev/null 2>&1; then
@@ -37,24 +27,31 @@ ensure_homebrew() {
 	if ! type brew >/dev/null 2>&1; then
 		echo "Installing Homebrew..."
 
-		# nanolayer is a cli utility which keeps container layers as small as possible
-		# source code: https://github.com/devcontainers-extra/nanolayer
-		# `ensure_nanolayer` is a bash function that will find any existing nanolayer installations,
-		# and if missing - will download a temporary copy that automatically get deleted at the end
-		# of the script
-		ensure_nanolayer nanolayer_location "v0.4.29"
+		ensure_curl
 
-		$nanolayer_location \
-			install \
-			devcontainer-feature \
-			"ghcr.io/meaningful-ooo/devcontainer-features/homebrew:2.0.4" \
-			--option shallow_clone='true' --option update="true"
-		source /etc/profile.d/nanolayer-homebrew.sh
+		# The official installer defaults to installing formulae from Homebrew's
+		# JSON API (HOMEBREW_INSTALL_FROM_API=1) instead of git-cloning the
+		# homebrew-core tap, which is a multi-gigabyte, multi-million-object
+		# repository. That makes this dramatically faster than manually cloning
+		# brew + homebrew-core, at the cost of not being able to `brew extract`
+		# formula versions that predate the current API snapshot.
+		# The installer refuses to run as root unless it detects it's inside a
+		# container via /.dockerenv, /run/.containerenv, or a recognized cgroup.
+		# BuildKit (docker buildx) builds don't set any of those, even though
+		# this genuinely is a container build step, so mark it ourselves.
+		touch /.dockerenv
+
+		NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+		echo "eval \"\$(${BREW_PREFIX}/bin/brew shellenv)\"" >/etc/profile.d/homebrew.sh
+		chown -R "$_REMOTE_USER" "$BREW_PREFIX"
+
+		# Solves CVE-2022-24767 mitigation in Git >2.35.2
+		# For more information: https://github.blog/2022-04-12-git-security-vulnerability-announced/
+		git config --system --add safe.directory "${BREW_PREFIX}/Homebrew"
 	fi
 
-	# Solves CVE-2022-24767 mitigation in Git >2.35.2
-	# For more information: https://github.blog/2022-04-12-git-security-vulnerability-announced/
-	git config --system --add safe.directory "$(brew --prefix)/Homebrew/Library/Taps/homebrew/homebrew-core"
+	source /etc/profile.d/homebrew.sh
 }
 
 install_via_homebrew() {
@@ -71,41 +68,17 @@ install_via_homebrew() {
 	su - "$_REMOTE_USER" <<EOF
 		set -e
 
-		brew_safe_install() {
-			local installation_flags=$1
-			local package_full=$2
+		# The reason for "--overwrite" flag is to not fail when a similarly
+		# named binary is already linked
+		brew install $installation_flags --overwrite "$package_full" --only-dependencies
 
-			# The reason for "--overwrite" flag is to not fail when a similarly
-			# named binary is already linked
-			brew install $installation_flags --overwrite "$package_full" --only-dependencies
-
-			# The reason we first installing dependencies and only then the main
-			# package is that some packages are big enough to reach the linux
-			# open file limit. While normally this limit can be changed, the current
-			# devcontainer feature building phase run unprivileged and therfore
-			# cannot change the hard nofile limit from host machine during feature
-			# build time.
-			brew install $installation_flags --overwrite "$package_full"
-		}
-
-
-		if brew desc --eval-all --formulae "$package_full"; then
-			# If a version is exists then install it the regular way
-
-			brew_safe_install $installation_flags  "$package_full"
-		else
-			# unshallow and extract as last resort
-			echo "Unshallowing homebrew-core. This could take a while."
-			git -C "$(brew --prefix)/Homebrew/Library/Taps/homebrew/homebrew-core" fetch --unshallow
-			brew extract --force --version="$version" "$package" homebrew/cask
-
-			brew_safe_install $installation_flags  "$package_full"
-
-			# attempt to remove tap in order to save disk space
-			set +e
-			brew untap homebrew/cask --force
-			set -e
-		fi
+		# The reason we first installing dependencies and only then the main
+		# package is that some packages are big enough to reach the linux
+		# open file limit. While normally this limit can be changed, the current
+		# devcontainer feature building phase run unprivileged and therfore
+		# cannot change the hard nofile limit from host machine during feature
+		# build time.
+		brew install $installation_flags --overwrite "$package_full"
 
 		brew link --overwrite --force "$package_full"
 EOF
